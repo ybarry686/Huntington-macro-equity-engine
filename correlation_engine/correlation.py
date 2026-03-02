@@ -2,6 +2,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd 
 
+
 def correlation(pd, ticker):
     '''
     Finds correlation between specific ETF and macro data
@@ -15,6 +16,7 @@ def correlation(pd, ticker):
     plt.title(f'Correlation Matrix of Macroeconomic Variables and {ticker}')
     plt.savefig(f'plots/{ticker}.png')
     plt.show()
+
 
 def graph(MACRO, ETF,  ETF_name, MACRO_name):
     '''
@@ -46,6 +48,7 @@ def graph(MACRO, ETF,  ETF_name, MACRO_name):
     plt.show()
 
 
+    
 '''
 ETF = fix_pd('data/cleanedData/XLE_quarterly.csv')
 ETF = ETF['Close']
