@@ -4,41 +4,64 @@ from PCA import dynamic_pca
 from correlation_engine.engine import run_correlation_engine
 from correlation_engine.correlation import correlation
 
-def create_linear_model(PROCESSING, TABLE_CONFIG, etf, display=False):
-    '''
-    A wrapper for all the steps to create a linear model. Takes processing and table configas arguemnts
-    and then computes a master table, optimal lag, PCA, and then linear regression. 
+def create_linear_model(
+        PROCESSING,
+        TABLE_CONFIG,
+        etf,
+        use_lag=True,
+        use_pca=True,
+        corr_threshold=0.80,
+        variance_explained=0.90,
+        stability_threshold=0.50,
+        display=False
+    ):
 
-    PPROCESSING: dict for ways to process the raw CSVs. 
-    TABLE_CONFIG: dict for how to read the raw CSVs, and what transformations to apply.
-    
-    '''
+    valid_lag = []
+
     MACRO = master_table(TABLE_CONFIG, PROCESSING, "all_macros")
     ETF = fix_pd(etf)
-
     ETF = ETF.pct_change()
 
     m_table = MACRO.merge(ETF[['Close']], on='observation_date', how='left')
     m_table = m_table[:240]
-    # 2000-2020, cut off before covid
 
     macros_for_corr = list(MACRO.columns)
-    yearly_period, lags = 5, 12     # For window to lag relationships, look into SE (standard error of correlation coefficient). Tells you how much noise to expect
+    yearly_period, lags = 5, 12
 
     y = m_table["Close"]
 
-    run_correlation_engine(m_table, macros_for_corr, ["Close"], yearly_period, lags, generate_config=True)
+    if use_lag:
+        run_correlation_engine(
+            m_table,
+            macros_for_corr,
+            ["Close"],
+            yearly_period,
+            lags,
+            generate_config=True
+        )
 
-    valid_lag = []
-    m_table, valid_lag = apply_lag("optimal_lags.json", m_table, stability_threshold=0.50)
-    print(f"Valid lags applied: {valid_lag}")
+        m_table, valid_lag = apply_lag(
+            "optimal_lags.json",
+            m_table,
+            stability_threshold=stability_threshold
+        )
 
+    # NOW remove Close (after lag engine is done)
     m_table = m_table.drop(columns=["Close"])
 
-    MACRO_pca= dynamic_pca(m_table, correlation_threshold=0.80, variance_explained=0.90)
-    MACRO_pca.to_csv('pca_macros.csv')
+    if use_pca:
+        MACRO_final = dynamic_pca(
+            m_table,
+            correlation_threshold=corr_threshold,
+            variance_explained=variance_explained
+        )
+        MACRO_final.to_csv("pca_macros.csv")
+    else:
+        MACRO_final = m_table
 
-    osl, anova = linear_regression(MACRO_pca, y, etf)
+    print(MACRO_final.head())
+    osl, anova = linear_regression(MACRO_final, y, etf)
+
     return osl, anova, valid_lag
 
 
@@ -78,4 +101,17 @@ if __name__ == "__main__":
     
 
     etf = 'data/raw_data/ETFs/XLE_monthly.csv'
-    print(create_linear_model(PROCESSING, TABLE_CONFIG, etf, display=False))
+
+    create_linear_model(
+        PROCESSING,
+        TABLE_CONFIG,
+        etf,
+        use_lag=True,
+        use_pca=True,
+        corr_threshold=0.80,
+        variance_explained=0.90,
+        stability_threshold=0.50,
+        display=False)
+    # print(create_linear_model(PROCESSING, TABLE_CONFIG, etf, display=False))
+
+
