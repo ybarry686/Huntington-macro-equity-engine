@@ -51,10 +51,10 @@ def graph(MACRO, ETF,  ETF_name, MACRO_name):
 
 
 if __name__ == "__main__":
-    ETF = fix_pd('data/cleanedData/XLF_quarterly.csv')
-    ETF = ETF['Close']
+    ETF = fix_pd('data/raw_data/ETFs/XLF_monthly.csv')
+    ETF = ETF["Close"]
     macro = fix_pd('data/raw_data/FEDFUNDS.csv')
 
-    graph(macro, ETF, "XLE", "FEDFUNDS")
+    graph(macro, ETF, "XLF", "FEDFUNDS")
 
 

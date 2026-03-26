@@ -1,6 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import mean_squared_error, r2_score, confusion_matrix, classification_report
+import numpy as np
 import statsmodels.formula.api as smf
 from statsmodels.stats.anova import anova_lm
 import os
@@ -13,7 +14,7 @@ def linear_regression(x, y, etf, output_dir="reports/images"):
     df = x.copy()
     df["y"] = y
 
-    train_size = int(len(df) * 0.8)
+    train_size = int(len(df) * 0.80)
     train = df.iloc[:train_size]
     test = df.iloc[train_size:]
 
@@ -28,22 +29,18 @@ def linear_regression(x, y, etf, output_dir="reports/images"):
     
     graph(results, train, test, y_pred, etf, output_dir, directional_accuracy, r2_oos)
 
+    print(model.summary())
+    print(anova_lm(model, typ=1))
+
     return model.summary(), anova_lm(model, typ=1)
 
 
 def model_testing(x, y, model, test):
-    """
-    For a fitted regression model and a test set, calculates
-    predicted vs actual for each month individually, 
-    """
     test = test.copy()
     results = []
 
     for idx, row in test.iterrows():
-        x_row = row[x.columns]  # predictor values for this month
         y_actual = row["y"]
-        
-        # Predict for this single month
         y_pred = model.predict(row.to_frame().T).iloc[0]
 
         results.append({
@@ -55,42 +52,110 @@ def model_testing(x, y, model, test):
     results_df = pd.DataFrame(results)
     results_df.set_index("Month", inplace=True)
 
-    # Optional: add error columns
+    # ---- Errors & directional correctness ----
     results_df["Error"] = results_df["Actual"] - results_df["Predicted"]
     results_df["Squared_Error"] = results_df["Error"] ** 2
-    
-    # Calculate month-over-month change
-    results_df = results_df.copy()
-    results_df["Actual_Direction"] = results_df["Actual"].diff() > 0
-    results_df["Predicted_Direction"] = results_df["Predicted"].diff() > 0
 
-    # Correct if direction matches
-    results_df["Correct_Direction"] = results_df["Actual_Direction"] == results_df["Predicted_Direction"]
-
-    # Optional: convert to Yes / No
-    results_df["Direction_Label"] = results_df["Correct_Direction"].map({True: "Yes", False: "No"})
-
-    # Drop the first month since diff() creates NaN
+    # Month-over-month changes
+    results_df["Actual_Change"] = results_df["Actual"].diff()
+    results_df["Predicted_Change"] = results_df["Predicted"].diff()
     results_df = results_df.iloc[1:]
 
-    # Convert boolean to Yes / No
-    results_df["Direction_Correct_Label"] = results_df["Correct_Direction"].map({True: "Yes", False: "No"})
+    results_df["Actual_Direction"] = results_df["Actual_Change"] > 0
+    results_df["Predicted_Direction"] = results_df["Predicted_Change"] > 0
+    results_df["Correct_Direction"] = results_df["Actual_Direction"] == results_df["Predicted_Direction"]
+    results_df["Direction_Label"] = results_df["Correct_Direction"].map({True: "Yes", False: "No"})
 
-    # Example: show month-by-month classification
-    print(results_df[["Actual", "Predicted", "Direction_Correct_Label"]])
-
-    # out of sample r2
     directional_accuracy = results_df["Correct_Direction"].mean()
-    mean_train = model.model.endog.mean()
-    sse_model = results_df["Squared_Error"].sum()
-    sse_mean = ((results_df["Actual"] - mean_train) ** 2).sum()
+
+    # ---- Direction-aware L/M/H ----
+    pos = results_df[results_df["Actual_Change"] > 0]["Actual_Change"]
+    neg = results_df[results_df["Actual_Change"] < 0]["Actual_Change"]
+
+
+    # Quantiles based only on actuals
+    pos_low, pos_high = pos.quantile([0.33, 0.66])
+    neg_low, neg_high = neg.quantile([0.33, 0.66])
+
+    results_df["Actual_LMH_Dir"] = results_df["Actual_Change"].apply(
+        lambda x: directional_lmh(x, pos_low, pos_high, neg_low, neg_high)
+    )
+    results_df["Predicted_LMH_Dir"] = results_df["Predicted_Change"].apply(
+        lambda x: directional_lmh(x, pos_low, pos_high, neg_low, neg_high)
+    )
+
+    # ---- 6-class confusion matrix ----
+    labels = ["Bull_Low", "Bull_Medium", "Bull_High", "Bear_Low", "Bear_Medium", "Bear_High"]
+    cm = confusion_matrix(results_df["Actual_LMH_Dir"], results_df["Predicted_LMH_Dir"], labels=labels)
+    cm_df = pd.DataFrame(cm, index=labels, columns=labels)
+
+    print("6-Class Confusion Matrix:")
+    print(cm_df)
+
+    # ---- Directional accuracy per class ----
+    directional_per_class = {}
+    for label in labels:
+        subset = results_df[results_df["Actual_LMH_Dir"] == label]
+        if len(subset) > 0:
+            directional_per_class[label] = (subset["Actual_LMH_Dir"] == subset["Predicted_LMH_Dir"]).mean()
+        else:
+            directional_per_class[label] = np.nan  # handle empty classes
+
+    print("\nDirectional Accuracy per Class:")
+    for k, v in directional_per_class.items():
+        print(f"{k}: {v:.2%}" if not np.isnan(v) else f"{k}: N/A")
+    
+    actual_counts = results_df["Actual_LMH_Dir"].value_counts().reindex(labels, fill_value=0)
+    pred_counts = results_df["Predicted_LMH_Dir"].value_counts().reindex(labels, fill_value=0)
+
+    counts_df = pd.DataFrame({
+        "Actual_Count": actual_counts,
+        "Predicted_Count": pred_counts
+    })
+
+    print("Counts per Class:")
+    print(counts_df)
+
+
+    # ---- Out-of-sample R² ----
+    mean_train = model.model.endog.mean() # it should technically be the variable below since this is OOS, redoo graphs later # 
+    # mean_train = y.iloc[:int(len(y) * 0.80)].mean() 
+    sse_model = results_df["Squared_Error"].sum() 
+    sse_mean = ((results_df["Actual"] - mean_train) ** 2).sum() 
     r2_oos = 1 - (sse_model / sse_mean)
+
+    results_df.drop(['Correct_Direction', 'Predicted_Direction', 'Squared_Error', 'Actual_Change', 'Actual_Direction'], axis=1, inplace=True)
+    # print(results_df)
 
     print(f"Out-of-sample R²: {r2_oos:.4f}")
     print(f"Directional Accuracy: {directional_accuracy:.2%}")
+    # print(results_df["Actual"].max())
 
     return results_df, directional_accuracy, r2_oos
 
+
+def directional_lmh(change, pos_low, pos_high, neg_low, neg_high):
+    '''
+    Classifies a monthly change into one of six directional-magnitude categories based on actual return thresholds.
+    Split into Low, medium, and high, it is based according to the actual market movement.
+    '''
+    if change > 0:  # Bull
+        if change <= pos_low:
+            return "Bull_Low"
+        elif change <= pos_high:
+            return "Bull_Medium"
+        else:
+            return "Bull_High"
+    elif change < 0:  # Bear
+        if change >= neg_high:  # closer to 0 → low magnitude
+            return "Bear_Low"
+        elif change >= neg_low:
+            return "Bear_Medium"
+        else:
+            return "Bear_High"
+    else:
+        return "Neutral"
+    
 def graph(df, train, test, y_pred, etf, output_dir, directional_accuracy, r2_oos):
     """
     Plots:
@@ -149,4 +214,6 @@ def graph(df, train, test, y_pred, etf, output_dir, directional_accuracy, r2_oos
     etf_name = os.path.basename(etf).replace(".csv", "")
     filepath = os.path.join(output_dir, f"{etf_name}_results.png")
     plt.savefig(filepath, dpi=300, bbox_inches="tight")
+    # Comment this out to not display graph
+    plt.show()
     plt.close()

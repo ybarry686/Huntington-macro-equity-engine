@@ -3,6 +3,9 @@ from linearRegression import linear_regression
 from PCA import dynamic_pca
 from correlation_engine.engine import run_correlation_engine
 from correlation_engine.correlation import correlation
+from statsmodels.graphics.tsaplots import plot_acf
+import matplotlib.pyplot as plt
+
 
 def create_linear_model(
         PROCESSING,
@@ -20,10 +23,24 @@ def create_linear_model(
 
     MACRO = master_table(TABLE_CONFIG, PROCESSING, "all_macros")
     ETF = fix_pd(etf)
-    ETF = ETF.pct_change()
+    # print(ETF.head())
+    ETF = ETF.pct_change()    
+    
+    # pd.set_option('display.max_rows', None)
+    # pd.set_option('display.max_columns', None)
+    # ETF = ETF[:240]
+    # print(ETF["Close"])
+    # print(ETF["Close"].describe())
+    # print(ETF["Close"].autocorr(lag=12))
+    # plot_acf(ETF["Close"], lags=12)
+    # plt.show()
+    
+    
+    
 
     m_table = MACRO.merge(ETF[['Close']], on='observation_date', how='left')
     m_table = m_table[:240]
+    print(m_table)
 
     macros_for_corr = list(MACRO.columns)
     yearly_period, lags = 5, 12
@@ -46,6 +63,7 @@ def create_linear_model(
             stability_threshold=stability_threshold
         )
 
+    print(valid_lag)
     # NOW remove Close (after lag engine is done)
     m_table = m_table.drop(columns=["Close"])
 
@@ -59,9 +77,9 @@ def create_linear_model(
     else:
         MACRO_final = m_table
 
-    print(MACRO_final.head())
+    # print(MACRO_final.head())
     osl, anova = linear_regression(MACRO_final, y, etf)
-
+    
     return osl, anova, valid_lag
 
 
@@ -73,34 +91,36 @@ if __name__ == "__main__":
         "interpolate_monthly" : interpolate_monthly,
         "YoY" : YoY,
         "enforce_stationary" : enforce_stationary,
-        "log_diff" : log_diff
+        "log_diff" : log_diff,
+        "diff" : diff
     }
 
-    TABLE_CONFIG = { 
-        "GDP": { 
-            "path": "data/raw_data/GDP.csv", 
-            "pipeline": ["read", "interpolate_monthly", "log_diff"], 
-            "shift": 0 }, 
-        "MCOILWTICO": { 
-            "path": "data/raw_data/MCOILWTICO.csv", 
-            "pipeline": ["read", "log_diff"], 
-            "shift": 0 }, 
-        # "PCEPI": { 
-        #     "path": "data/raw_data/PCEPI.csv", 
-        #     "pipeline": ["read", "log_diff"], 
-        #     "shift": 0 },
-        # "UNRATE": { 
-        #     "path": "data/raw_data/UNRATE.csv", 
-        #     "pipeline": ["read", "log_diff"], 
-        #     "shift": 0 },
-        # "FEDFUNDS": { 
-        #     "path": "data/raw_data/FEDFUNDS.csv", 
-        #     "pipeline": ["read", "log_diff"], 
-        #     "shift": 0 }   
-        }
-    
 
-    etf = 'data/raw_data/ETFs/XLE_monthly.csv'
+
+    TABLE_CONFIG = {
+        "GDP": {
+            "path": "data/raw_data/GDP.csv",
+            "pipeline": ["read", "interpolate_monthly", "log_diff"],
+            "shift": 0
+        },
+        "GS10": {
+            "path": "data/raw_data/GS10.csv",
+            "pipeline": ["read", "log_diff"],
+            "shift": 0
+        },
+        "FEDFUNDS": {
+            "path": "data/raw_data/FEDFUNDS.csv",
+            "pipeline": ["read", 'diff'], 
+            "shift": 0
+        },
+        "MCOILWTICO": {
+            "path": "data/raw_data/MCOILWTICO.csv",
+            "pipeline": ["read", "log_diff"],
+            "shift": 0
+        }
+     }
+    
+    etf = 'data/raw_data/ETFs/XLV_monthly.csv'
 
     create_linear_model(
         PROCESSING,
@@ -111,7 +131,7 @@ if __name__ == "__main__":
         corr_threshold=0.80,
         variance_explained=0.90,
         stability_threshold=0.50,
-        display=False)
+        display=True)
     # print(create_linear_model(PROCESSING, TABLE_CONFIG, etf, display=False))
 
 
