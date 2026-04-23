@@ -9,7 +9,7 @@ def visualize_by_risk(sector_risk_data: dict[dict], etf_ticker):
     risk = "risk_score"
     
     # sort by risk score
-    risk_table = _rank_by_risk(sector_risk_data, risk)
+    risk_table = rank_by_risk(sector_risk_data, risk)
 
     fig, ax = plt.subplots(figsize=(20, 4))
     ax.set_title(
@@ -70,7 +70,7 @@ def visualize_by_risk(sector_risk_data: dict[dict], etf_ticker):
 
     plt.show()
 
-def _rank_by_risk(sector_risk_data: dict[dict], risk: str):
+def rank_by_risk(sector_risk_data: dict[dict], risk: str):
     # sort by risk score
     sorted_tickers = sorted(
         sector_risk_data.items(),
@@ -102,7 +102,7 @@ def _rank_by_risk(sector_risk_data: dict[dict], risk: str):
 
 def visualize_by_metric(sector_risk_data: dict[dict], etf_ticker, metric: str):
     # sort by metric
-    sorted_metric_df = _rank_by_metric(sector_risk_data, metric)
+    sorted_metric_df = rank_by_metric(sector_risk_data, metric)
 
     # visualize by metric
     fig, ax = plt.subplots(figsize=(9, 4))
@@ -145,7 +145,7 @@ def visualize_by_metric(sector_risk_data: dict[dict], etf_ticker, metric: str):
 
     plt.show()
 
-def _rank_by_metric(sector_risk_data: dict[dict], metric: str):
+def rank_by_metric(sector_risk_data: dict[dict], metric: str):
     """ Given a metric sort values from highest to lowest """
     
     # sort all the etf's by the given metric (i.e, beta, volatility, normalized_beta, etc.)
@@ -192,7 +192,7 @@ def _rank_by_metric(sector_risk_data: dict[dict], metric: str):
 
 def visualize_holdings(etf_ticker):
     # get top holdings
-    top_holdings = _get_holdings(etf_ticker)
+    top_holdings = get_holdings(etf_ticker)
     top_holdings['Weight'] = top_holdings['Weight'].round(2)
 
     # visualize top holdings
@@ -223,7 +223,7 @@ def visualize_holdings(etf_ticker):
 
     plt.show()
 
-def _get_holdings(etf_ticker):
+def get_holdings(etf_ticker):
     sector_info = pd.read_excel(rf'data\raw_data\ETFs\etf_holdings\{etf_ticker}.xlsx', sheet_name='holdings')
     holdings_info = sector_info[['Name', 'Ticker', 'Weight']].head(10) # pull the top 10 holdings in the sector
     holdings_info.rename(columns={'Name': 'Company'}, inplace=True)
