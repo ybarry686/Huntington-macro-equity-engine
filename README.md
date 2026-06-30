@@ -42,10 +42,10 @@ The system uses the FRED API to retrieve macroeconomic time series data for mode
 ### 2. Obtain a FRED API Key
 
 Visit the Federal Reserve Economic Data (FRED) platform: https://fred.stlouisfed.org/  
-Create a free account or sign in.  
-Navigate to your account settings.  
-Generate an API key under the developer/API section.  
-Copy the key and paste it into your `.env` file:
+1. Create a free account or sign in.  
+2. Navigate to your account settings.  
+3. Generate an API key under the developer/API section.  
+4. Copy the key and paste it into your `.env` file:
 
 ```env
 FRED_API_KEY=your_generated_key_here
