@@ -10,7 +10,7 @@ A comprehensive quantitative research and forecasting platform for sector-level 
 * **Statistical Significance:** Resulted in a **22% increase compared to baseline** in downstream forecasting accuracy.   
 
 ### Multi-Model ML Suite
-* **Linear Regression Models:** Integrates Ordinary, Recursive, and Rolling OLS models to capture static, evolving, and time-varying relationships between macroeconomic indicators and ETF returns.
+* **Linear Regression Models:** Integrates Recursive, and Rolling OLS models to capture static, evolving, and time-varying relationships between macroeconomic indicators and ETF returns.
 * **Random Forest:** Captures complex nonlinear relationships between macroeconomic indicators and ETF returns, validated across 25+ simulated market conditions (e.g., bull markets, bear markets, macro shocks, etc).
 * **Principal-Component Analysis:** Implements dimensionality reduction, slashing feature noise by **70%** while preserving over **85%** dataset variance.
 * **Statistical Significance:** Achieved **55%+ directional accuracy** in forecasting sector price action across shifting market regimes.
